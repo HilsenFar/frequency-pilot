@@ -73,7 +73,9 @@
 
   /* PILOTS */
   .pilot-table{width:100%;border-collapse:collapse;background:var(--card);border:1px solid var(--line);border-radius:14px;overflow:hidden}
-  .pilot-wrap{overflow-x:auto;border-radius:14px}
+  .pilot-wrap{overflow-x:auto;border-radius:14px;-webkit-overflow-scrolling:touch}
+  .pilot-hint{display:none;font-size:.78rem;opacity:.55;letter-spacing:.08em;margin:.35rem 0 .5rem;text-transform:uppercase}
+  @media (pointer: coarse){ .pilot-hint{display:block} }
   .pilot-table th,.pilot-table td{padding:.85rem 1.1rem;text-align:left;font-size:.93rem;white-space:nowrap}
   .pilot-table th{background:#101034;color:var(--cyan);text-transform:uppercase;font-size:.78rem;letter-spacing:.1em}
   .pilot-table tr{border-bottom:1px solid var(--line)}
@@ -180,6 +182,7 @@
 <section>
   <h2 class="sec-title t-orange">Choose your pilot</h2>
   <p class="sec-sub">Five animal pilots, Starfox-catalog style. Stats change how the tunnel feels.</p>
+  <p class="pilot-hint">← swipe the table →</p>
   <div class="pilot-wrap">
   <table class="pilot-table">
     <tr><th>Pilot</th><th>Type</th><th>Speed</th><th>Handling</th><th>Shield</th><th>Size</th></tr>
