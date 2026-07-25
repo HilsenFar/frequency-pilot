@@ -13,131 +13,407 @@
 <meta property="og:description" content="One song becomes four frequency-band levels. A free experimental rhythm-dodge tunnel game for Windows built with Python + pygame.">
 <meta property="og:image" content="https://frequencypilot.gitato.net/og-cover.png">
 <meta name="twitter:card" content="summary_large_image">
-<meta name="theme-color" content="#050510">
+<meta name="theme-color" content="#0A0C10">
+
+<!-- GITATO Design System v2 — loaded first so this page can override it. -->
+<link rel="stylesheet" href="ds.css">
 <style>
+  /* ── Surface-local only. Substrate, ink, edges, type, motion and focus all
+       come from ds.css; the four band colours are the one genuinely local
+       decision on this page, so they are the only thing declared here. ─────── */
   :root{
-    --bg:#050510; --bg2:#0a0a22;
-    --cyan:#00ffdc; --magenta:#ff28b4; --orange:#ff9628; --green:#50dc78;
-    --text:#d8dcea; --dim:#8a90a8; --card:#0c0c24; --line:#1c1c40;
+    --fp-bass:   var(--gt-cyan);
+    --fp-mid:    var(--gt-green);
+    --fp-high:   var(--gt-amber);
+    --fp-treble: var(--gt-magenta);
   }
+
   *{margin:0;padding:0;box-sizing:border-box}
   html{scroll-behavior:smooth}
-  body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-apple-system,sans-serif;line-height:1.6;overflow-x:hidden}
-  h1,h2,h3{font-weight:800;letter-spacing:.04em}
+  body{
+    background:var(--gt-sub-0);
+    color:var(--gt-ink-2);
+    font-family:var(--gt-font-body);
+    font-size:var(--gt-t-base);
+    line-height:var(--gt-lh-body);
+    overflow-x:hidden;
+  }
+  h1,h2,h3{font-family:var(--gt-font-ui);font-weight:700;letter-spacing:var(--gt-track-head);line-height:var(--gt-lh-head)}
+  a{color:var(--gt-sig-ink)}
+  a.gt-plate, a.gt-btn, .scroll-hint{text-decoration:none;-webkit-tap-highlight-color:transparent}
 
-  /* HERO */
-  .hero{position:relative;min-height:100vh;display:flex;align-items:center;justify-content:center;text-align:center;overflow:hidden}
-  #tunnel{position:absolute;inset:0;width:100%;height:100%;display:block}
-  .hero-inner{position:relative;z-index:2;padding:2rem;max-width:900px}
-  .hero h1{font-size:clamp(2.4rem,8vw,5rem);color:var(--cyan);
-    text-shadow:0 0 12px rgba(0,255,220,.75),0 0 48px rgba(0,255,220,.35);text-transform:uppercase}
-  .hero .tag{margin-top:.8rem;font-size:clamp(1rem,2.6vw,1.4rem);color:var(--text)}
-  .hero .tag em{color:var(--magenta);font-style:normal;text-shadow:0 0 10px rgba(255,40,180,.6)}
-  .badge{display:inline-block;margin-top:1.1rem;padding:.3rem .9rem;border:1px solid var(--orange);border-radius:999px;
-    color:var(--orange);font-size:.8rem;letter-spacing:.12em;text-transform:uppercase}
-  .cta-row{margin-top:2.2rem;display:flex;gap:1rem;justify-content:center;flex-wrap:wrap}
-  .btn{display:inline-block;padding:1rem 2.4rem;border-radius:10px;font-weight:700;font-size:1.05rem;
-    text-decoration:none;letter-spacing:.06em;text-transform:uppercase;transition:transform .15s,box-shadow .15s}
-  .btn-dl{background:var(--cyan);color:#02120f;box-shadow:0 0 24px rgba(0,255,220,.45)}
-  .btn-dl:hover{transform:translateY(-2px);box-shadow:0 0 44px rgba(0,255,220,.7)}
-  .btn-ghost{border:2px solid var(--magenta);color:var(--magenta)}
-  .btn-ghost:hover{background:rgba(255,40,180,.1);transform:translateY(-2px)}
-  .dl-meta{margin-top:.9rem;font-size:.85rem;color:var(--dim)}
-  .scroll-hint{position:absolute;bottom:1.4rem;left:50%;transform:translateX(-50%);color:var(--dim);font-size:1.6rem;
-    animation:bob 1.8s ease-in-out infinite;z-index:2}
+  /* Focus. There was none on this surface — now every clickable thing has it.
+     .gt-plate keeps ds.css's inverted ring (higher specificity wins). */
+  a:focus-visible,
+  button:focus-visible,
+  [tabindex]:focus-visible{
+    outline:none;
+    box-shadow:var(--gt-focus-ring);
+    border-radius:var(--gt-r-2);
+  }
+  /* …except that ds.css draws that ring as an OUTSET box-shadow while also
+     cutting .gt-plate with clip-path, and clip-path clips the shadow away.
+     Measured on this page: tabbing onto either Download button changed zero
+     pixels outside its box — the primary CTA had no focus indicator at all.
+     An inset ring lives inside the clip and cannot be lost. The two custom
+     properties are the ones ds.css already flips on a lit face (gap → white,
+     ink → near-black); this is the first thing that actually reads them. */
+  a.gt-plate:focus-visible{
+    box-shadow:
+      inset 0 0 0 3px var(--gt-focus-gap),
+      inset 0 0 0 6px var(--gt-focus-ink);
+  }
+  /* the hint is a 40px disc; don't square it off just because it has focus */
+  .scroll-hint:focus-visible{border-radius:var(--gt-r-pill)}
+
+  /* ── HERO ─────────────────────────────────────────────────────────────────
+     The tunnel is loud, so the content is an opaque HUD plate rather than bare
+     text floating on a live canvas: over a canvas, contrast can only be
+     guaranteed by an opaque fill. */
+  .hero{
+    position:relative;min-height:100vh;min-height:100svh;
+    display:flex;align-items:center;justify-content:center;text-align:center;
+    overflow:hidden;padding:var(--gt-s-8) var(--gt-s-4);
+  }
+  #tunnel{position:absolute;inset:0;width:100%;height:100%;display:block;z-index:0}
+  /* the canvas dissolves into the page instead of stopping at a hard seam */
+  .hero::after{
+    content:"";position:absolute;left:0;right:0;bottom:0;height:24vh;
+    background:linear-gradient(180deg,transparent,var(--gt-sub-0));
+    z-index:1;pointer-events:none;
+  }
+  .hero-inner{
+    position:relative;z-index:2;
+    width:min(100%,780px);
+    padding:clamp(30px,5vw,52px) clamp(20px,4vw,46px) clamp(26px,4vw,42px);
+    background:var(--gt-hud);
+    border:1px solid var(--gt-edge-bezel);
+    border-radius:var(--gt-r-4);
+    box-shadow:var(--gt-e-4), 0 0 130px -40px var(--gt-sig);
+  }
+  .hero-inner::before{
+    content:"";position:absolute;left:0;right:0;top:0;height:3px;
+    background:linear-gradient(90deg,var(--gt-sig),var(--gt-sig-2));
+    border-radius:var(--gt-r-4) var(--gt-r-4) 0 0;
+  }
+  .hero-eyebrow{margin-bottom:var(--gt-s-4)}
+  .hero h1{
+    font-size:var(--gt-t-3xl);
+    letter-spacing:var(--gt-track-hero);
+    text-transform:uppercase;
+    color:var(--gt-sig-ink);
+    text-shadow:0 0 30px color-mix(in srgb, var(--gt-sig) 42%, transparent);
+  }
+  .hero .tag{
+    margin-top:var(--gt-s-3);
+    font-family:var(--gt-font-ui);font-size:var(--gt-t-md);font-weight:500;
+    color:var(--gt-ink-1);
+  }
+  .hero .tag em{color:var(--gt-sig-2-ink);font-style:normal;font-weight:700}
+  .cta-row{margin-top:var(--gt-s-6);display:flex;gap:var(--gt-s-3);justify-content:center;flex-wrap:wrap}
+  .btn-lg{padding:16px 28px;font-size:var(--gt-t-md)}
+  .meta-row{
+    margin-top:var(--gt-s-5);
+    display:flex;flex-wrap:wrap;gap:var(--gt-s-2);justify-content:center;
+  }
+  .scroll-hint{
+    position:absolute;bottom:var(--gt-s-4);left:50%;transform:translateX(-50%);
+    z-index:2;display:grid;place-items:center;width:40px;height:40px;
+    color:var(--gt-ink-3);border-radius:var(--gt-r-pill);
+    animation:bob 1.8s ease-in-out infinite;
+  }
+  .scroll-hint:hover{color:var(--gt-sig-ink)}
+  .scroll-hint .gi{width:1.5em;height:1.5em}
   @keyframes bob{0%,100%{transform:translate(-50%,0)}50%{transform:translate(-50%,10px)}}
 
-  section{max-width:1060px;margin:0 auto;padding:5rem 1.5rem}
-  .sec-title{font-size:clamp(1.6rem,4vw,2.3rem);text-transform:uppercase;margin-bottom:.6rem}
-  .sec-sub{color:var(--dim);margin-bottom:2.5rem;max-width:640px}
-  .t-cyan{color:var(--cyan)} .t-mag{color:var(--magenta)} .t-orange{color:var(--orange)} .t-green{color:var(--green)}
+  /* ── SECTIONS ─────────────────────────────────────────────────────────── */
+  section{max-width:var(--gt-wrap);margin:0 auto;padding:var(--gt-s-9) var(--gt-s-5)}
+  .sec-title{
+    position:relative;font-size:var(--gt-t-2xl);text-transform:uppercase;
+    padding-bottom:var(--gt-s-3);margin-bottom:var(--gt-s-3);
+  }
+  .sec-title::after{
+    content:"";position:absolute;left:0;bottom:0;width:64px;height:3px;
+    background:currentColor;border-radius:2px;
+  }
+  .sec-sub{color:var(--gt-ink-3);margin-bottom:var(--gt-s-7);max-width:var(--gt-wrap-text)}
+  .t-cyan{color:var(--gt-cyan-ink)}
+  .t-mag{color:var(--gt-magenta-ink)}
+  .t-orange{color:var(--gt-amber-ink)}
+  .t-green{color:var(--gt-green-ink)}
 
-  /* HOW IT WORKS */
-  .steps{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:1.2rem}
-  .step{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:1.6rem;position:relative}
-  .step .num{position:absolute;top:-.9rem;left:1.2rem;background:var(--bg);border:1px solid var(--cyan);color:var(--cyan);
-    width:2rem;height:2rem;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:800}
-  .step h3{margin-bottom:.5rem;font-size:1.05rem;color:#fff}
-  .step p{font-size:.92rem;color:var(--dim)}
+  /* ── HOW IT WORKS — recessed wells with a lit index plate ─────────────────
+     Card type 1 of 4: sunken, numbered, no colour of its own. */
+  .steps{display:grid;grid-template-columns:repeat(auto-fit,minmax(232px,1fr));gap:var(--gt-s-5) var(--gt-s-4)}
+  .step{
+    position:relative;padding:var(--gt-s-6) var(--gt-s-5) var(--gt-s-5);
+    background:var(--gt-void);
+    border:1px solid var(--gt-edge-hair);
+    border-radius:var(--gt-r-3);
+    box-shadow:inset 0 2px 6px rgba(0,0,0,.75), inset 0 -1px 0 var(--gt-lip);
+  }
+  .step .num{
+    position:absolute;top:-13px;left:var(--gt-s-4);
+    width:32px;height:26px;display:flex;align-items:center;justify-content:center;
+    font-family:var(--gt-font-ui);font-weight:700;font-size:var(--gt-t-sm);
+    font-variant-numeric:tabular-nums;
+    color:var(--gt-ink-on-lit);background:var(--gt-sig);
+    border-radius:var(--gt-r-1);
+    clip-path:polygon(6px 0,100% 0,100% calc(100% - 6px),calc(100% - 6px) 100%,0 100%,0 6px);
+    box-shadow:0 0 0 1px var(--gt-sig-dk);
+  }
+  .step h3{font-size:var(--gt-t-md);color:var(--gt-ink-1);margin-bottom:var(--gt-s-2)}
+  .step p{color:var(--gt-ink-2)}
 
-  /* BANDS */
-  .bands{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:1.2rem}
-  .band{border-radius:14px;padding:1.5rem;background:var(--card);border:1px solid var(--line);border-top:4px solid}
-  .band h3{font-size:1.1rem;margin-bottom:.2rem}
-  .band .hz{font-size:.8rem;letter-spacing:.1em;color:var(--dim);margin-bottom:.7rem}
-  .band p{font-size:.9rem;color:var(--dim)}
-  .eq{display:flex;gap:3px;align-items:flex-end;height:36px;margin-top:1rem}
-  .eq span{width:6px;border-radius:2px 2px 0 0;animation:eq 1s ease-in-out infinite alternate}
+  /* ── BANDS — raised plates with an emissive top rail ──────────────────────
+     Card type 2 of 4: raised, colour-coded, the only cards that carry colour
+     as meaning. */
+  .bands{display:grid;grid-template-columns:repeat(auto-fit,minmax(232px,1fr));gap:var(--gt-s-4)}
+  .band{
+    position:relative;overflow:hidden;
+    padding:calc(var(--gt-s-5) + 4px) var(--gt-s-5) var(--gt-s-5);
+    background:linear-gradient(180deg,var(--gt-pl-2),var(--gt-pl-1));
+    border:1px solid var(--gt-edge-bezel);
+    border-radius:var(--gt-r-3);
+    box-shadow:var(--gt-e-2);
+  }
+  .band::before{
+    content:"";position:absolute;top:0;left:0;right:0;height:4px;
+    background:var(--band,var(--gt-sig));
+    box-shadow:0 2px 22px -2px var(--band,var(--gt-sig));
+  }
+  .band-head{display:flex;align-items:center;gap:var(--gt-s-2)}
+  .band-head .gi{color:var(--band,var(--gt-sig))}
+  .band h3{font-size:var(--gt-t-lg)}
+  .band .hz{
+    display:inline-flex;align-items:center;margin:var(--gt-s-2) 0 var(--gt-s-3);
+    padding:3px 8px;
+    font-family:var(--gt-font-mono);font-size:var(--gt-t-xs);letter-spacing:.1em;
+    color:var(--gt-ink-3);background:var(--gt-sub-1);
+    border:1px solid var(--gt-edge-hair);border-radius:var(--gt-r-1);
+  }
+  .band p{color:var(--gt-ink-2)}
+  .eq{display:flex;gap:3px;align-items:flex-end;height:36px;margin-top:var(--gt-s-4)}
+  .eq span{
+    width:6px;border-radius:2px 2px 0 0;transform-origin:bottom;
+    background:var(--band,var(--gt-sig));
+    animation:eq 1s ease-in-out infinite alternate;
+  }
   @keyframes eq{from{transform:scaleY(.3)}to{transform:scaleY(1)}}
-  .eq span{transform-origin:bottom}
 
-  /* PILOTS */
-  .pilot-table{width:100%;border-collapse:collapse;background:var(--card);border:1px solid var(--line);border-radius:14px;overflow:hidden}
-  .pilot-wrap{overflow-x:auto;border-radius:14px;-webkit-overflow-scrolling:touch}
-  .pilot-hint{display:none;font-size:.78rem;opacity:.55;letter-spacing:.08em;margin:.35rem 0 .5rem;text-transform:uppercase}
-  @media (pointer: coarse){ .pilot-hint{display:block} }
-  .pilot-table th,.pilot-table td{padding:.85rem 1.1rem;text-align:left;font-size:.93rem;white-space:nowrap}
-  .pilot-table th{background:#101034;color:var(--cyan);text-transform:uppercase;font-size:.78rem;letter-spacing:.1em}
-  .pilot-table tr{border-bottom:1px solid var(--line)}
-  .pilot-table td:first-child{font-weight:700;color:#fff}
-  .stat{display:inline-block;height:8px;border-radius:4px;background:var(--cyan);vertical-align:middle}
+  /* ── PILOTS ───────────────────────────────────────────────────────────── */
+  .pilot-wrap{
+    overflow-x:auto;-webkit-overflow-scrolling:touch;
+    background:var(--gt-pl-1);
+    border:1px solid var(--gt-edge-hair);
+    border-radius:var(--gt-r-3);
+    box-shadow:var(--gt-e-2);
+  }
+  .pilot-hint{
+    display:none;align-items:center;gap:6px;
+    font-family:var(--gt-font-ui);font-size:var(--gt-t-xs);
+    letter-spacing:var(--gt-track-label);text-transform:uppercase;
+    color:var(--gt-ink-3);margin:0 0 var(--gt-s-2);
+  }
+  @media (pointer: coarse){ .pilot-hint{display:flex} }
+  .pilot-table{width:100%;border-collapse:collapse;min-width:660px}
+  .pilot-table th{
+    background:var(--gt-sub-1);color:var(--gt-sig-ink);
+    font-family:var(--gt-font-ui);font-size:var(--gt-t-xs);font-weight:700;
+    letter-spacing:var(--gt-track-label);text-transform:uppercase;
+    text-align:left;padding:var(--gt-s-3) var(--gt-s-4);white-space:nowrap;
+    border-bottom:1px solid var(--gt-edge-bezel);
+  }
+  .th-scale{font-family:var(--gt-font-mono);color:var(--gt-ink-3);letter-spacing:.08em}
+  .pilot-table td{
+    padding:var(--gt-s-3) var(--gt-s-4);white-space:nowrap;
+    border-bottom:1px solid var(--gt-edge-hair);color:var(--gt-ink-2);
+  }
+  .pilot-table tbody tr:last-child td{border-bottom:0}
+  .pilot-table tbody tr:hover{background:var(--gt-pl-2)}
+  .pilot-table td:first-child{font-family:var(--gt-font-ui);font-weight:700;color:var(--gt-ink-1)}
+  .pilot-scale{margin-top:var(--gt-s-3)}
 
-  /* FEATURES */
-  .feats{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:1.2rem}
-  .feat{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:1.5rem}
-  .feat h3{font-size:1rem;margin-bottom:.45rem}
-  .feat p{font-size:.9rem;color:var(--dim)}
+  /* Stat bars: a fixed 0–100 track (the max reference the inline px widths
+     never had) plus the number itself, so colour is never the only channel. */
+  .stat{display:flex;align-items:center;gap:var(--gt-s-2)}
+  .stat-track{
+    position:relative;width:104px;height:9px;overflow:hidden;
+    background:var(--gt-void);
+    border:1px solid var(--gt-edge-hair);
+    border-radius:var(--gt-r-pill);
+    box-shadow:inset 0 1px 3px rgba(0,0,0,.8);
+  }
+  .stat-track::after{
+    content:"";position:absolute;inset:0;pointer-events:none;
+    background:repeating-linear-gradient(90deg,
+      transparent 0 calc(25% - 1px), var(--gt-edge-hair) calc(25% - 1px) 25%);
+  }
+  .stat-fill{
+    display:block;height:100%;width:calc(var(--v,0) * 1%);
+    background:var(--gt-sig);
+  }
+  .stat--ok .stat-fill{background:var(--gt-ok)}
+  .stat-val{min-width:2.4ch;text-align:right;font-size:var(--gt-t-sm);color:var(--gt-ink-2)}
 
-  /* REQUIREMENTS + DOWNLOAD */
-  .req-box{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:2rem}
-  .req-box ul{list-style:none;margin-top:1rem}
-  .req-box li{padding:.45rem 0;border-bottom:1px dashed var(--line);font-size:.95rem}
+  /* ── FEATURES — flat icon-led cards ───────────────────────────────────────
+     Card type 3 of 4: the quietest of the four. Deliberately monochrome; the
+     bands own the colour on this page. */
+  .feats{display:grid;grid-template-columns:repeat(auto-fit,minmax(268px,1fr));gap:var(--gt-s-4)}
+  .feat{
+    display:grid;grid-template-columns:auto 1fr;gap:var(--gt-s-4);align-items:start;
+    padding:var(--gt-s-5);
+    background:var(--gt-pl-1);
+    border:1px solid var(--gt-edge-hair);
+    border-radius:var(--gt-r-3);
+    box-shadow:var(--gt-e-1);
+  }
+  .feat-ic{
+    display:grid;place-items:center;width:38px;height:38px;
+    color:var(--gt-sig-ink);
+    background:var(--gt-void);
+    border:1px solid var(--gt-edge-hair);
+    border-radius:var(--gt-r-2);
+    box-shadow:inset 0 1px 3px rgba(0,0,0,.7);
+  }
+  .feat-ic .gi{width:1.25em;height:1.25em}
+  .feat h3{font-size:var(--gt-t-md);color:var(--gt-ink-1);margin-bottom:var(--gt-s-2)}
+  .feat p{color:var(--gt-ink-2)}
+
+  /* ── REQUIREMENTS — a riveted spec sheet ─────────────────────────────────
+     Card type 4 of 4: one big panel with a hazard header and a rivet at each
+     corner. Nothing else on the page looks like it. */
+  .req-box{
+    position:relative;overflow:hidden;
+    background:var(--gt-pl-1);
+    border:1px solid var(--gt-edge-bezel);
+    border-radius:var(--gt-r-4);
+    box-shadow:var(--gt-e-3);
+  }
+  .req-head{
+    display:flex;align-items:center;gap:var(--gt-s-2);
+    padding:var(--gt-s-4) var(--gt-s-5);
+    background:var(--gt-sub-1);
+    border-bottom:1px solid var(--gt-edge-hair);
+  }
+  .req-head h3{font-size:var(--gt-t-md);text-transform:uppercase;color:var(--gt-ink-1)}
+  .req-head .gi{color:var(--gt-sig)}
+  .req-box ul{list-style:none;padding:var(--gt-s-3) var(--gt-s-5)}
+  .req-box li{
+    display:grid;grid-template-columns:22px 158px 1fr;gap:var(--gt-s-3);
+    align-items:baseline;padding:var(--gt-s-3) 0;
+    border-bottom:1px dashed var(--gt-edge-hair);
+  }
   .req-box li:last-child{border-bottom:none}
-  .req-box li b{color:#fff;display:inline-block;min-width:170px}
-  .note{margin-top:1.4rem;padding:1rem 1.2rem;border-left:3px solid var(--orange);background:rgba(255,150,40,.06);
-    color:var(--dim);font-size:.9rem;border-radius:0 8px 8px 0}
-  .note b{color:var(--orange)}
-  .dl-final{text-align:center;padding-bottom:6rem}
+  .req-box li .gi{color:var(--gt-ink-4);justify-self:start;align-self:center}
+  .req-box li b{
+    font-family:var(--gt-font-ui);font-size:var(--gt-t-xs);font-weight:700;
+    letter-spacing:var(--gt-track-label);text-transform:uppercase;
+    color:var(--gt-ink-1);
+  }
+  @media (max-width:520px){
+    .req-box li{grid-template-columns:22px 1fr}
+    .req-box li b{grid-column:2}
+    .req-box li span{grid-column:2}
+  }
+  .note{
+    display:grid;grid-template-columns:auto 1fr;gap:var(--gt-s-3);
+    margin:var(--gt-s-3) var(--gt-s-5) var(--gt-s-5);
+    padding:var(--gt-s-4);
+    border-left:3px solid var(--gt-warn);
+    border-radius:0 var(--gt-r-2) var(--gt-r-2) 0;
+    background:color-mix(in srgb, var(--gt-warn) 9%, transparent);
+    color:var(--gt-ink-2);
+  }
+  .note .gi{color:var(--gt-warn)}
+  .note b{color:var(--gt-warn-ink)}
+  .dl-final{text-align:center;padding-bottom:var(--gt-s-9)}
+  .dl-final .sec-title::after{left:50%;transform:translateX(-50%)}
+  .dl-final .sec-sub{margin-left:auto;margin-right:auto}
 
-  footer{border-top:1px solid var(--line);padding:2.5rem 1.5rem;text-align:center;color:var(--dim);font-size:.85rem}
-  footer a{color:var(--cyan);text-decoration:none}
-  kbd{background:#101034;border:1px solid var(--line);border-radius:5px;padding:.1rem .5rem;font-size:.85em;color:var(--cyan)}
+  footer{
+    border-top:1px solid var(--gt-edge-hair);
+    background:var(--gt-sub-1);
+    padding:var(--gt-s-7) var(--gt-s-5);
+    text-align:center;color:var(--gt-ink-3);font-size:var(--gt-t-sm);
+  }
+  footer strong{font-family:var(--gt-font-ui);color:var(--gt-sig-ink);letter-spacing:var(--gt-track-label)}
+
+  kbd{
+    font-family:var(--gt-font-mono);font-size:.85em;
+    color:var(--gt-sig-ink);background:var(--gt-sub-1);
+    border:1px solid var(--gt-edge-hair);border-radius:var(--gt-r-1);
+    padding:.1rem .45rem;box-shadow:inset 0 -1px 0 rgba(0,0,0,.5);
+  }
+
+  /* ds.css already neutralises durations; these two loops are removed outright
+     rather than shortened — a 1ms bob still reads as a jump. */
+  @media (prefers-reduced-motion: reduce){
+    .scroll-hint{animation:none}
+    .eq span{animation:none;transform:scaleY(1)}
+  }
+
+  /* .gt-grain is a fixed, viewport-sized mix-blend-mode:overlay layer, and it
+     sits over the tunnel canvas. A blend layer cannot be damage-tracked, so
+     every canvas frame forces a re-composite of the whole viewport — the one
+     surface on this page that cannot afford it. SPEC afsnit F already says the
+     grain does not belong on a game surface; the hero is the only part of this
+     page that is one, so the grain is suspended for exactly as long as the
+     tunnel is actually running and returns the moment it parks. Reduced-motion
+     visitors never start the loop, so for them the grain never moves at all. */
+  body.tunnel-running .gt-grain{display:none}
 </style>
 </head>
-<body>
+<body data-gt="frequencypilot">
+<div class="gt-vignette" aria-hidden="true"></div>
+<div class="gt-grain" aria-hidden="true"></div>
 
 <header class="hero">
   <canvas id="tunnel" aria-hidden="true"></canvas>
   <div class="hero-inner">
+    <p class="hero-eyebrow">
+      <span class="gt-chip gt-chip--lit">
+        <svg class="gi gi--sm" aria-hidden="true"><use href="icons.svg#gi-flask"></use></svg>Free experimental build
+      </span>
+    </p>
     <h1>Frequency Pilot</h1>
     <p class="tag">One song. Four frequency levels. <em>Dodge the music.</em></p>
-    <span class="badge">Free experimental build</span>
     <div class="cta-row">
-      <a class="btn btn-dl" href="./FrequencyPilot-win64.zip" download>Download for Windows</a>
-      <a class="btn btn-ghost" href="#how">How it works</a>
+      <a class="gt-plate btn-lg" href="./FrequencyPilot-win64.zip" download>
+        <svg class="gi" aria-hidden="true"><use href="icons.svg#gi-download"></use></svg>Download for Windows
+      </a>
+      <a class="gt-btn btn-lg" href="#how">
+        <svg class="gi" aria-hidden="true"><use href="icons.svg#gi-chevron-down"></use></svg>How it works
+      </a>
     </div>
-    <p class="dl-meta">FrequencyPilot-win64.zip &middot; Windows 10 / 11 (64-bit) &middot; no install, just unzip &amp; run</p>
+    <div class="meta-row">
+      <span class="gt-badge"><svg class="gi gi--sm" aria-hidden="true"><use href="icons.svg#gi-download"></use></svg>FrequencyPilot-win64.zip</span>
+      <span class="gt-badge"><svg class="gi gi--sm" aria-hidden="true"><use href="icons.svg#gi-hex"></use></svg>Windows 10 / 11 (64-bit)</span>
+      <span class="gt-badge"><svg class="gi gi--sm" aria-hidden="true"><use href="icons.svg#gi-bolt"></use></svg>no install, just unzip &amp; run</span>
+    </div>
   </div>
-  <div class="scroll-hint">&#9660;</div>
+  <a class="scroll-hint" href="#how" aria-label="Scroll to how it works">
+    <svg class="gi" aria-hidden="true"><use href="icons.svg#gi-chevron-down"></use></svg>
+  </a>
 </header>
 
 <section id="how">
   <h2 class="sec-title t-cyan">How it works</h2>
   <p class="sec-sub">Frequency Pilot turns any track into a procedurally generated dodge-tunnel. No level packs, no editors — the music is the level.</p>
   <div class="steps">
-    <div class="step"><span class="num">1</span>
+    <div class="step"><span class="num gt-num">1</span>
       <h3>Feed it a song</h3>
       <p>Paste a YouTube or SoundCloud URL. The game fetches the audio and runs a full FFT frequency analysis before you fly.</p>
     </div>
-    <div class="step"><span class="num">2</span>
+    <div class="step"><span class="num gt-num">2</span>
       <h3>Get four levels</h3>
       <p>The track is split into four frequency bands — Bass, Mid, High-Mid and Treble. Each band becomes its own level with its own obstacle style.</p>
     </div>
-    <div class="step"><span class="num">3</span>
+    <div class="step"><span class="num gt-num">3</span>
       <h3>Pick your pilot</h3>
       <p>Choose from five animal pilots with different speed, handling, shield and hull-size stats. Small and twitchy, or tanky and wide.</p>
     </div>
-    <div class="step"><span class="num">4</span>
+    <div class="step"><span class="num gt-num">4</span>
       <h3>Dodge everything</h3>
       <p>Fly the neon tunnel with <kbd>WASD</kbd> or arrow keys. Obstacles spawn from the actual energy of the music. Chain dodges for combo multipliers.</p>
     </div>
@@ -148,32 +424,48 @@
   <h2 class="sec-title t-mag">Four bands, four playstyles</h2>
   <p class="sec-sub">Every level plays the band-filtered audio, so you hear exactly the frequencies you are dodging.</p>
   <div class="bands">
-    <div class="band" style="border-top-color:var(--cyan)">
-      <h3 class="t-cyan">BASS</h3><div class="hz">20 – 250 Hz</div>
+    <div class="band" style="--band:var(--fp-bass)">
+      <div class="band-head">
+        <svg class="gi" aria-hidden="true"><use href="icons.svg#gi-speaker"></use></svg>
+        <h3 class="t-cyan">BASS</h3>
+      </div>
+      <div class="hz">20 – 250 Hz</div>
       <p>Slow, wide walls with moving gaps. Heavy kicks build heavy obstacles.</p>
-      <div class="eq">
-        <span style="background:var(--cyan);height:30px;animation-delay:0s"></span><span style="background:var(--cyan);height:22px;animation-delay:.15s"></span><span style="background:var(--cyan);height:34px;animation-delay:.3s"></span><span style="background:var(--cyan);height:18px;animation-delay:.45s"></span><span style="background:var(--cyan);height:28px;animation-delay:.6s"></span>
+      <div class="eq" aria-hidden="true">
+        <span style="height:30px;animation-delay:0s"></span><span style="height:22px;animation-delay:.15s"></span><span style="height:34px;animation-delay:.3s"></span><span style="height:18px;animation-delay:.45s"></span><span style="height:28px;animation-delay:.6s"></span>
       </div>
     </div>
-    <div class="band" style="border-top-color:var(--green)">
-      <h3 class="t-green">MID</h3><div class="hz">250 – 2000 Hz</div>
+    <div class="band" style="--band:var(--fp-mid)">
+      <div class="band-head">
+        <svg class="gi" aria-hidden="true"><use href="icons.svg#gi-music"></use></svg>
+        <h3 class="t-green">MID</h3>
+      </div>
+      <div class="hz">250 – 2000 Hz</div>
       <p>Varied pillars and patterns driven by vocals, synths and guitars.</p>
-      <div class="eq">
-        <span style="background:var(--green);height:20px;animation-delay:.1s"></span><span style="background:var(--green);height:32px;animation-delay:.25s"></span><span style="background:var(--green);height:16px;animation-delay:.4s"></span><span style="background:var(--green);height:28px;animation-delay:.55s"></span><span style="background:var(--green);height:24px;animation-delay:.7s"></span>
+      <div class="eq" aria-hidden="true">
+        <span style="height:20px;animation-delay:.1s"></span><span style="height:32px;animation-delay:.25s"></span><span style="height:16px;animation-delay:.4s"></span><span style="height:28px;animation-delay:.55s"></span><span style="height:24px;animation-delay:.7s"></span>
       </div>
     </div>
-    <div class="band" style="border-top-color:var(--orange)">
-      <h3 class="t-orange">HIGH-MID</h3><div class="hz">2000 – 6000 Hz</div>
+    <div class="band" style="--band:var(--fp-high)">
+      <div class="band-head">
+        <svg class="gi" aria-hidden="true"><use href="icons.svg#gi-waveform"></use></svg>
+        <h3 class="t-orange">HIGH-MID</h3>
+      </div>
+      <div class="hz">2000 – 6000 Hz</div>
       <p>Narrow, fast bars. Snares and hats punch quick obstacles at you.</p>
-      <div class="eq">
-        <span style="background:var(--orange);height:26px;animation-delay:.05s"></span><span style="background:var(--orange);height:14px;animation-delay:.2s"></span><span style="background:var(--orange);height:30px;animation-delay:.35s"></span><span style="background:var(--orange);height:20px;animation-delay:.5s"></span><span style="background:var(--orange);height:34px;animation-delay:.65s"></span>
+      <div class="eq" aria-hidden="true">
+        <span style="height:26px;animation-delay:.05s"></span><span style="height:14px;animation-delay:.2s"></span><span style="height:30px;animation-delay:.35s"></span><span style="height:20px;animation-delay:.5s"></span><span style="height:34px;animation-delay:.65s"></span>
       </div>
     </div>
-    <div class="band" style="border-top-color:var(--magenta)">
-      <h3 class="t-mag">TREBLE</h3><div class="hz">6000+ Hz</div>
+    <div class="band" style="--band:var(--fp-treble)">
+      <div class="band-head">
+        <svg class="gi" aria-hidden="true"><use href="icons.svg#gi-spark"></use></svg>
+        <h3 class="t-mag">TREBLE</h3>
+      </div>
+      <div class="hz">6000+ Hz</div>
       <p>Dense, rapid-fire grids and diagonals. The hardest run of the four.</p>
-      <div class="eq">
-        <span style="background:var(--magenta);height:18px;animation-delay:0s"></span><span style="background:var(--magenta);height:30px;animation-delay:.12s"></span><span style="background:var(--magenta);height:24px;animation-delay:.24s"></span><span style="background:var(--magenta);height:34px;animation-delay:.36s"></span><span style="background:var(--magenta);height:16px;animation-delay:.48s"></span>
+      <div class="eq" aria-hidden="true">
+        <span style="height:18px;animation-delay:0s"></span><span style="height:30px;animation-delay:.12s"></span><span style="height:24px;animation-delay:.24s"></span><span style="height:34px;animation-delay:.36s"></span><span style="height:16px;animation-delay:.48s"></span>
       </div>
     </div>
   </div>
@@ -182,71 +474,157 @@
 <section>
   <h2 class="sec-title t-orange">Choose your pilot</h2>
   <p class="sec-sub">Five animal pilots, Starfox-catalog style. Stats change how the tunnel feels.</p>
-  <p class="pilot-hint">← swipe the table →</p>
+  <p class="pilot-hint">
+    <svg class="gi gi--sm" aria-hidden="true"><use href="icons.svg#gi-chevron-left"></use></svg>
+    swipe the table
+    <svg class="gi gi--sm" aria-hidden="true"><use href="icons.svg#gi-chevron-right"></use></svg>
+  </p>
   <div class="pilot-wrap">
   <table class="pilot-table">
-    <tr><th>Pilot</th><th>Type</th><th>Speed</th><th>Handling</th><th>Shield</th><th>Size</th></tr>
-    <tr><td>Arx Fox</td><td>Balanced</td><td><span class="stat" style="width:50px"></span></td><td><span class="stat" style="width:50px"></span></td><td><span class="stat" style="width:30px;background:var(--green)"></span></td><td>1.0x</td></tr>
-    <tr><td>Kael Wolf</td><td>Heavy Interceptor</td><td><span class="stat" style="width:30px"></span></td><td><span class="stat" style="width:40px"></span></td><td><span class="stat" style="width:50px;background:var(--green)"></span></td><td>1.3x</td></tr>
-    <tr><td>Vex Falcon</td><td>Speedster</td><td><span class="stat" style="width:70px"></span></td><td><span class="stat" style="width:70px"></span></td><td><span class="stat" style="width:20px;background:var(--green)"></span></td><td>0.8x</td></tr>
-    <tr><td>Lyra Kitsune</td><td>Agile Trickster</td><td><span class="stat" style="width:60px"></span></td><td><span class="stat" style="width:80px"></span></td><td><span class="stat" style="width:20px;background:var(--green)"></span></td><td>0.7x</td></tr>
-    <tr><td>Mek Slippy</td><td>Engineer &middot; auto-repair</td><td><span class="stat" style="width:40px"></span></td><td><span class="stat" style="width:50px"></span></td><td><span class="stat" style="width:40px;background:var(--green)"></span></td><td>1.1x</td></tr>
+    <thead>
+      <tr>
+        <th scope="col">Pilot</th>
+        <th scope="col">Type</th>
+        <th scope="col">Speed <span class="th-scale">/100</span></th>
+        <th scope="col">Handling <span class="th-scale">/100</span></th>
+        <th scope="col">Shield <span class="th-scale">/100</span></th>
+        <th scope="col">Size</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Arx Fox</td><td>Balanced</td>
+        <td><span class="stat" style="--v:50"><span class="stat-track" aria-hidden="true"><span class="stat-fill"></span></span><span class="stat-val gt-num">50</span></span></td>
+        <td><span class="stat" style="--v:50"><span class="stat-track" aria-hidden="true"><span class="stat-fill"></span></span><span class="stat-val gt-num">50</span></span></td>
+        <td><span class="stat stat--ok" style="--v:30"><span class="stat-track" aria-hidden="true"><span class="stat-fill"></span></span><span class="stat-val gt-num">30</span></span></td>
+        <td class="gt-num">1.0x</td>
+      </tr>
+      <tr>
+        <td>Kael Wolf</td><td>Heavy Interceptor</td>
+        <td><span class="stat" style="--v:30"><span class="stat-track" aria-hidden="true"><span class="stat-fill"></span></span><span class="stat-val gt-num">30</span></span></td>
+        <td><span class="stat" style="--v:40"><span class="stat-track" aria-hidden="true"><span class="stat-fill"></span></span><span class="stat-val gt-num">40</span></span></td>
+        <td><span class="stat stat--ok" style="--v:50"><span class="stat-track" aria-hidden="true"><span class="stat-fill"></span></span><span class="stat-val gt-num">50</span></span></td>
+        <td class="gt-num">1.3x</td>
+      </tr>
+      <tr>
+        <td>Vex Falcon</td><td>Speedster</td>
+        <td><span class="stat" style="--v:70"><span class="stat-track" aria-hidden="true"><span class="stat-fill"></span></span><span class="stat-val gt-num">70</span></span></td>
+        <td><span class="stat" style="--v:70"><span class="stat-track" aria-hidden="true"><span class="stat-fill"></span></span><span class="stat-val gt-num">70</span></span></td>
+        <td><span class="stat stat--ok" style="--v:20"><span class="stat-track" aria-hidden="true"><span class="stat-fill"></span></span><span class="stat-val gt-num">20</span></span></td>
+        <td class="gt-num">0.8x</td>
+      </tr>
+      <tr>
+        <td>Lyra Kitsune</td><td>Agile Trickster</td>
+        <td><span class="stat" style="--v:60"><span class="stat-track" aria-hidden="true"><span class="stat-fill"></span></span><span class="stat-val gt-num">60</span></span></td>
+        <td><span class="stat" style="--v:80"><span class="stat-track" aria-hidden="true"><span class="stat-fill"></span></span><span class="stat-val gt-num">80</span></span></td>
+        <td><span class="stat stat--ok" style="--v:20"><span class="stat-track" aria-hidden="true"><span class="stat-fill"></span></span><span class="stat-val gt-num">20</span></span></td>
+        <td class="gt-num">0.7x</td>
+      </tr>
+      <tr>
+        <td>Mek Slippy</td><td>Engineer &middot; auto-repair</td>
+        <td><span class="stat" style="--v:40"><span class="stat-track" aria-hidden="true"><span class="stat-fill"></span></span><span class="stat-val gt-num">40</span></span></td>
+        <td><span class="stat" style="--v:50"><span class="stat-track" aria-hidden="true"><span class="stat-fill"></span></span><span class="stat-val gt-num">50</span></span></td>
+        <td><span class="stat stat--ok" style="--v:40"><span class="stat-track" aria-hidden="true"><span class="stat-fill"></span></span><span class="stat-val gt-num">40</span></span></td>
+        <td class="gt-num">1.1x</td>
+      </tr>
+    </tbody>
   </table>
   </div>
+  <p class="gt-serial pilot-scale">All three stat bars share one 0–100 scale · ticks every 25</p>
 </section>
 
 <section>
   <h2 class="sec-title t-green">Features</h2>
   <div class="feats">
-    <div class="feat"><h3 class="t-cyan">Procedural everything</h3><p>Tunnel, obstacles, particles and ships are all drawn in code — no asset packs. Pure neon geometry at 60 fps.</p></div>
-    <div class="feat"><h3 class="t-mag">Real audio analysis</h3><p>FFT band-splitting with running-average beat detection. Obstacle density follows the actual energy in each band.</p></div>
-    <div class="feat"><h3 class="t-orange">YouTube, SoundCloud &amp; more</h3><p>Anything yt-dlp can read becomes a playable level set. Audio is cached temporarily and deleted when you quit.</p></div>
-    <div class="feat"><h3 class="t-green">Band-filtered playback</h3><p>Playing the BASS level? You hear only the bass. Each run is an isolated slice of the song.</p></div>
-    <div class="feat"><h3 class="t-cyan">Combo scoring</h3><p>Chain clean dodges to build multipliers. Four level scores add up to one total for the song.</p></div>
-    <div class="feat"><h3 class="t-mag">Zero install</h3><p>One portable .exe. Unzip, run, paste a URL, fly.</p></div>
+    <div class="feat">
+      <span class="feat-ic" aria-hidden="true"><svg class="gi"><use href="icons.svg#gi-hex"></use></svg></span>
+      <div><h3>Procedural everything</h3><p>Tunnel, obstacles, particles and ships are all drawn in code — no asset packs. Pure neon geometry at 60 fps.</p></div>
+    </div>
+    <div class="feat">
+      <span class="feat-ic" aria-hidden="true"><svg class="gi"><use href="icons.svg#gi-waveform"></use></svg></span>
+      <div><h3>Real audio analysis</h3><p>FFT band-splitting with running-average beat detection. Obstacle density follows the actual energy in each band.</p></div>
+    </div>
+    <div class="feat">
+      <span class="feat-ic" aria-hidden="true"><svg class="gi"><use href="icons.svg#gi-globe"></use></svg></span>
+      <div><h3>YouTube, SoundCloud &amp; more</h3><p>Anything yt-dlp can read becomes a playable level set. Audio is cached temporarily and deleted when you quit.</p></div>
+    </div>
+    <div class="feat">
+      <span class="feat-ic" aria-hidden="true"><svg class="gi"><use href="icons.svg#gi-headphones"></use></svg></span>
+      <div><h3>Band-filtered playback</h3><p>Playing the BASS level? You hear only the bass. Each run is an isolated slice of the song.</p></div>
+    </div>
+    <div class="feat">
+      <span class="feat-ic" aria-hidden="true"><svg class="gi"><use href="icons.svg#gi-bolt"></use></svg></span>
+      <div><h3>Combo scoring</h3><p>Chain clean dodges to build multipliers. Four level scores add up to one total for the song.</p></div>
+    </div>
+    <div class="feat">
+      <span class="feat-ic" aria-hidden="true"><svg class="gi"><use href="icons.svg#gi-download"></use></svg></span>
+      <div><h3>Zero install</h3><p>One portable .exe. Unzip, run, paste a URL, fly.</p></div>
+    </div>
   </div>
 </section>
 
 <section id="download" class="dl-final">
   <h2 class="sec-title t-cyan">Get Frequency Pilot</h2>
-  <p class="sec-sub" style="margin-left:auto;margin-right:auto">Free experimental build — expect rough edges, and let the music do the level design.</p>
-  <div class="req-box" style="text-align:left;max-width:640px;margin:0 auto 2.2rem">
-    <h3 class="t-orange" style="text-transform:uppercase;font-size:1rem">System requirements</h3>
+  <p class="sec-sub">Free experimental build — expect rough edges, and let the music do the level design.</p>
+  <div class="req-box gt-riveted" style="text-align:left;max-width:640px;margin:0 auto 2.2rem">
+    <span class="gt-rivet" aria-hidden="true"></span>
+    <div class="gt-hazard gt-hazard--inert" aria-hidden="true"></div>
+    <div class="req-head">
+      <svg class="gi" aria-hidden="true"><use href="icons.svg#gi-wrench"></use></svg>
+      <h3>System requirements</h3>
+    </div>
     <ul>
-      <li><b>OS</b> Windows 10 / 11 (64-bit)</li>
-      <li><b>Runtime</b> None — self-contained .exe (Python bundled inside)</li>
-      <li><b>Audio backend</b> ffmpeg required on your PATH (not bundled) — <a href="https://ffmpeg.org/download.html" style="color:var(--cyan)">ffmpeg.org</a></li>
-      <li><b>Network</b> Internet connection for YouTube / SoundCloud loading</li>
-      <li><b>Input</b> Keyboard — WASD / arrow keys, ESC to pause</li>
+      <li><svg class="gi gi--sm" aria-hidden="true"><use href="icons.svg#gi-hex"></use></svg><b>OS</b> <span>Windows 10 / 11 (64-bit)</span></li>
+      <li><svg class="gi gi--sm" aria-hidden="true"><use href="icons.svg#gi-build"></use></svg><b>Runtime</b> <span>None — self-contained .exe (Python bundled inside)</span></li>
+      <li><svg class="gi gi--sm" aria-hidden="true"><use href="icons.svg#gi-music"></use></svg><b>Audio backend</b> <span>ffmpeg required on your PATH (not bundled) — <a href="https://ffmpeg.org/download.html">ffmpeg.org <svg class="gi gi--sm" aria-hidden="true"><use href="icons.svg#gi-external"></use></svg></a></span></li>
+      <li><svg class="gi gi--sm" aria-hidden="true"><use href="icons.svg#gi-globe"></use></svg><b>Network</b> <span>Internet connection for YouTube / SoundCloud loading</span></li>
+      <li><svg class="gi gi--sm" aria-hidden="true"><use href="icons.svg#gi-keyboard"></use></svg><b>Input</b> <span>Keyboard — WASD / arrow keys, ESC to pause</span></li>
     </ul>
-    <div class="note"><b>Heads up:</b> this is a free, experimental, unsigned build. Windows SmartScreen may warn on first run — choose "More info &rarr; Run anyway". Audio is cached to your temp folder during analysis and removed on exit.</div>
+    <div class="note">
+      <svg class="gi" aria-hidden="true"><use href="icons.svg#gi-warning"></use></svg>
+      <p><b>Heads up:</b> this is a free, experimental, unsigned build. Windows SmartScreen may warn on first run — choose "More info &rarr; Run anyway". Audio is cached to your temp folder during analysis and removed on exit.</p>
+    </div>
   </div>
-  <a class="btn btn-dl" href="./FrequencyPilot-win64.zip" download>Download FrequencyPilot-win64.zip</a>
+  <a class="gt-plate btn-lg" href="./FrequencyPilot-win64.zip" download>
+    <svg class="gi" aria-hidden="true"><use href="icons.svg#gi-download"></use></svg>Download FrequencyPilot-win64.zip
+  </a>
 </section>
 
 <footer>
-  <p><strong class="t-cyan">FREQUENCY PILOT</strong> &mdash; a free experimental rhythm-dodge game built with Python, pygame, numpy &amp; yt-dlp.</p>
+  <p><strong>FREQUENCY PILOT</strong> &mdash; a free experimental rhythm-dodge game built with Python, pygame, numpy &amp; yt-dlp.</p>
   <p style="margin-top:.5rem">Inspired by BeatSurfer (Beat Games) and Starfox (Nintendo). Not affiliated with either. All audio is fetched on demand from the URL you provide and cached only temporarily.</p>
 </footer>
 
 <script>
 (function(){
   const c = document.getElementById('tunnel');
+  if(!c) return;
   const ctx = c.getContext('2d');
+  const hero = document.querySelector('.hero');
   let W, H, cx, cy, t = 0;
+  let raf = null, onScreen = true;
   const RINGS = 18, SPOKES = 16;
+  const reduce = window.matchMedia('(prefers-reduced-motion: reduce)');
+  const colors = ['0,230,200','255,43,214','255,138,31','53,224,138'];
+
+  // Will the loop paint the next frame on its own?
+  function willRun(){ return onScreen && !document.hidden && !reduce.matches; }
+
   function resize(){
-    W = c.width = c.clientWidth * devicePixelRatio;
-    H = c.height = c.clientHeight * devicePixelRatio;
+    W = c.width = Math.max(1, Math.round(c.clientWidth * devicePixelRatio));
+    H = c.height = Math.max(1, Math.round(c.clientHeight * devicePixelRatio));
     cx = W/2; cy = H/2;
+    ctx.fillStyle = '#0A0C10';
+    ctx.fillRect(0,0,W,H);
+    // Assigning canvas.width wipes the bitmap, so a parked loop needs a still
+    // put back. A live one does not — and resize() runs once on every load,
+    // before start(), so composing 34 frames the loop is about to overwrite
+    // charged every visitor a full-canvas jank spike at first paint.
+    if(raf === null && !willRun()) still();
   }
-  window.addEventListener('resize', resize); resize();
 
-  const colors = ['0,255,220','255,40,180','255,150,40','80,220,120'];
-
-  function frame(){
-    t += 0.008;
-    ctx.fillStyle = 'rgba(5,5,16,0.55)';
+  function draw(){
+    ctx.fillStyle = 'rgba(10,12,16,0.55)';
     ctx.fillRect(0,0,W,H);
     const maxR = Math.hypot(W,H)*0.55;
     // drifting tunnel center
@@ -266,7 +644,7 @@
       ctx.stroke();
     }
     // spokes
-    ctx.strokeStyle = 'rgba(0,255,220,0.10)';
+    ctx.strokeStyle = 'rgba(0,230,200,0.10)';
     ctx.lineWidth = devicePixelRatio;
     for(let s=0;s<SPOKES;s++){
       const a = (s/SPOKES)*Math.PI*2 + t*0.15;
@@ -283,11 +661,53 @@
       const x = cx+ox+Math.cos(a)*r, y = cy+oy+Math.sin(a)*r;
       if(x>=0&&x<=W&&y>=0&&y<=H) ctx.fillRect(x, y, 2*z*devicePixelRatio, 2*z*devicePixelRatio);
     }
-    requestAnimationFrame(frame);
   }
-  ctx.fillStyle = '#050510';
-  ctx.fillRect(0,0,W,H);
-  frame();
+
+  // One composed still: the same frame, wound forward far enough that the
+  // trails exist. This is what reduced-motion users get instead of the loop.
+  function still(){
+    for(let i=0;i<34;i++){ t += 0.008; draw(); }
+  }
+
+  function loop(){
+    t += 0.008;
+    draw();
+    raf = requestAnimationFrame(loop);
+  }
+
+  function start(){
+    if(raf === null && willRun()){
+      // marks the window in which the grain overlay must stand down (see CSS)
+      document.body.classList.add('tunnel-running');
+      raf = requestAnimationFrame(loop);
+    }
+  }
+  function stop(){
+    if(raf !== null){ cancelAnimationFrame(raf); raf = null; }
+    document.body.classList.remove('tunnel-running');
+  }
+
+  window.addEventListener('resize', resize);
+  document.addEventListener('visibilitychange', function(){
+    if(document.hidden){ stop(); } else { start(); }
+  });
+
+  // Park the loop the moment the hero leaves the viewport.
+  if('IntersectionObserver' in window && hero){
+    new IntersectionObserver(function(entries){
+      onScreen = entries[0].isIntersecting;
+      if(onScreen){ start(); } else { stop(); }
+    }, {threshold:0}).observe(hero);
+  }
+
+  if(reduce.addEventListener){
+    reduce.addEventListener('change', function(){
+      if(reduce.matches){ stop(); still(); } else { start(); }
+    });
+  }
+
+  resize();
+  start();
 })();
 </script>
 </body>
